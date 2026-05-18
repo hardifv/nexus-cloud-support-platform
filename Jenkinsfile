@@ -103,21 +103,28 @@ pipeline {
             }
         }
 
-        stage('Manual Approval') {
-            when {
-                expression {
-                    return params.APPLY_CHANGES == true
-                }
-            }
+        stage('Apply Decision') {
             steps {
-                input message: 'Review the Terraform plan. Apply changes?', ok: 'Apply'
+                script {
+                    env.APPLY_DECISION = input(
+                        message: 'Terraform plan completed. What do you want to do?',
+                        ok: 'Continue',
+                        parameters: [
+                            choice(
+                                name: 'ACTION',
+                                choices: ['Plan only', 'Apply'],
+                                description: 'Choose whether to only keep the plan or apply the changes'
+                            )
+                        ]
+                    )
+                }
             }
         }
 
         stage('Terraform Apply') {
             when {
                 expression {
-                    return params.APPLY_CHANGES == true
+                    return env.APPLY_DECISION == 'Apply'
                 }
             }
             steps {
