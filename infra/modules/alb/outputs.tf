@@ -13,3 +13,12 @@ output "nexus_target_group_arn" {
   value       = aws_lb_target_group.nexus.arn
 }
 
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix for CloudWatch metrics"
+  value       = aws_lb.this.arn_suffix
+}
+
+output "target_group_arn_suffix" {
+  description = "Target Group ARN suffix for CloudWatch metrics"
+  value       = aws_lb_target_group.nexus.arn_suffix
+}
