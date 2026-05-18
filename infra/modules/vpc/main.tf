@@ -15,6 +15,7 @@ resource "aws_vpc" "this" {
     Name        = "${local.name_prefix}-vpc"
     Environment = var.environment
     Project     = var.project_name
+    ManagedBy = "Terraform"
   }
 }
 
