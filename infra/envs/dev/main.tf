@@ -54,4 +54,5 @@ module "ec2_nexus" {
   nexus_security_group_id = module.security_groups.nexus_security_group_id
   instance_profile_name   = module.iam.nexus_instance_profile_name
   target_group_arn        = module.alb.nexus_target_group_arn
+  ami_id                  = var.nexus_ami_id
 }

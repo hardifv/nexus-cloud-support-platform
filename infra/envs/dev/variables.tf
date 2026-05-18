@@ -27,3 +27,8 @@ variable "private_subnet_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
 }
+
+variable "nexus_ami_id" {
+  type        = string
+  description = "AMI ID used by the Nexus EC2 instance"
+}
