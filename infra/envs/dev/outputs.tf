@@ -37,3 +37,13 @@ output "nexus_private_ip" {
   description = "Nexus private IP"
   value       = module.ec2_nexus.nexus_private_ip
 }
+
+output "sns_topic_arn" {
+  description = "SNS topic ARN for alerts"
+  value       = module.monitoring.sns_topic_arn
+}
+
+output "cloudwatch_alarm_names" {
+  description = "CloudWatch alarm names"
+  value       = module.monitoring.alarm_names
+}

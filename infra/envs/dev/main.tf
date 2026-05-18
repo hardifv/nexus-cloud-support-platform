@@ -56,3 +56,14 @@ module "ec2_nexus" {
   target_group_arn        = module.alb.nexus_target_group_arn
   ami_id                  = var.nexus_ami_id
 }
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_name            = var.project_name
+  environment             = var.environment
+  alarm_email             = var.alarm_email
+  alb_arn_suffix          = module.alb.alb_arn_suffix
+  target_group_arn_suffix = module.alb.target_group_arn_suffix
+  nexus_instance_id       = module.ec2_nexus.nexus_instance_id
+}

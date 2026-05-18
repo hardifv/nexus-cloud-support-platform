@@ -32,3 +32,8 @@ variable "nexus_ami_id" {
   type        = string
   description = "AMI ID used by the Nexus EC2 instance"
 }
+
+variable "alarm_email" {
+  type        = string
+  description = "Email address for CloudWatch alarm notifications"
+}
