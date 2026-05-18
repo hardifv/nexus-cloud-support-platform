@@ -27,3 +27,14 @@ variable "target_group_arn" {
   type        = string
   description = "ALB Target Group ARN"
 }
+
+variable "nexus_data_volume_size" {
+  type        = number
+  description = "Size of the dedicated EBS volume for Nexus data in GB"
+  default     = 30
+}
+
+variable "ami_id" {
+  type        = string
+  description = "AMI ID for the Nexus EC2 instance"
+}
