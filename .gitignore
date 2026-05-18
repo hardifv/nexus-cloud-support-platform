@@ -23,3 +23,6 @@ crash.*.log
 
 # Logs
 *.log
+
+
+**/backend.hcl
