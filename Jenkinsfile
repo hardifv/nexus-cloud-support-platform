@@ -8,9 +8,15 @@ pipeline {
 
     parameters {
         booleanParam(name: 'APPLY_CHANGES', defaultValue: false, description: 'Apply Terraform changes after manual approval')
+
         string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region')
         string(name: 'PROJECT_NAME', defaultValue: 'nexus-support', description: 'Project name')
         string(name: 'ENVIRONMENT', defaultValue: 'dev', description: 'Environment name')
+
+        string(name: 'STATE_BUCKET', defaultValue: 'nexus-support-dev-terraform-state-534234566556', description: 'S3 bucket for Terraform state')
+        string(name: 'LOCK_TABLE', defaultValue: 'nexus-support-dev-terraform-locks', description: 'DynamoDB table for Terraform lock')
+        string(name: 'STATE_KEY', defaultValue: 'dev/terraform.tfstate', description: 'Terraform state key')
+
         string(name: 'VPC_CIDR', defaultValue: '10.10.0.0/16', description: 'VPC CIDR')
         string(name: 'NEXUS_AMI_ID', defaultValue: 'ami-02fe376e6ac9632c8', description: 'Pinned AMI ID for Nexus EC2')
         string(name: 'ALARM_EMAIL', defaultValue: 'hardif01@gmail.com', description: 'SNS alarm email')
@@ -61,6 +67,24 @@ pipeline {
             }
         }
 
+        stage('Create Backend Config') {
+            steps {
+                dir('infra/envs/dev') {
+                    sh '''
+                    cat > backend.hcl <<BACKEND
+bucket         = "${STATE_BUCKET}"
+key            = "${STATE_KEY}"
+region         = "${AWS_REGION}"
+dynamodb_table = "${LOCK_TABLE}"
+encrypt        = true
+BACKEND
+
+                    cat backend.hcl
+                    '''
+                }
+            }
+        }
+
         stage('Terraform Format Check') {
             steps {
                 dir('infra/envs/dev') {
@@ -76,7 +100,7 @@ pipeline {
                     string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     dir('infra/envs/dev') {
-                        sh 'terraform init'
+                        sh 'terraform init -backend-config=backend.hcl'
                     }
                 }
             }
@@ -103,28 +127,21 @@ pipeline {
             }
         }
 
-        stage('Apply Decision') {
-            steps {
-                script {
-                    env.APPLY_DECISION = input(
-                        message: 'Terraform plan completed. What do you want to do?',
-                        ok: 'Continue',
-                        parameters: [
-                            choice(
-                                name: 'ACTION',
-                                choices: ['Plan only', 'Apply'],
-                                description: 'Choose whether to only keep the plan or apply the changes'
-                            )
-                        ]
-                    )
+        stage('Manual Approval') {
+            when {
+                expression {
+                    return params.APPLY_CHANGES == true
                 }
+            }
+            steps {
+                input message: 'Review the Terraform plan. Apply changes?', ok: 'Apply'
             }
         }
 
         stage('Terraform Apply') {
             when {
                 expression {
-                    return env.APPLY_DECISION == 'Apply'
+                    return params.APPLY_CHANGES == true
                 }
             }
             steps {
@@ -155,7 +172,7 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check Terraform logs, AWS credentials, state backend, or Nexus health.'
+            echo 'Pipeline failed. Check Terraform logs, backend config, AWS credentials, or Nexus health.'
         }
 
         always {
