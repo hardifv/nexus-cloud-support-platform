@@ -8,32 +8,28 @@ pipeline {
 
     parameters {
         string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region')
-        string(name: 'PROJECT_NAME', defaultValue: 'nexus-support', description: 'Project name')
-        string(name: 'ENVIRONMENT', defaultValue: 'dev', description: 'Environment name')
-        string(name: 'VPC_CIDR', defaultValue: '10.10.0.0/16', description: 'VPC CIDR')
-        string(name: 'NEXUS_AMI_ID', defaultValue: 'ami-02fe376e6ac9632c8', description: 'Pinned AMI ID for Nexus EC2')
-        string(name: 'ALARM_EMAIL', defaultValue: 'hardif01@gmail.com', description: 'SNS alarm email')
+        string(name: 'ALB_DNS_NAME', defaultValue: 'REPLACE_WITH_ALB_DNS', description: 'ALB DNS name for Nexus smoke test')
     }
 
     environment {
         TF_IN_AUTOMATION = 'true'
-
-        TF_VAR_aws_region   = "${params.AWS_REGION}"
-        TF_VAR_project_name = "${params.PROJECT_NAME}"
-        TF_VAR_environment  = "${params.ENVIRONMENT}"
-        TF_VAR_vpc_cidr     = "${params.VPC_CIDR}"
-
-        TF_VAR_public_subnet_cidrs  = '["10.10.1.0/24", "10.10.2.0/24"]'
-        TF_VAR_private_subnet_cidrs = '["10.10.11.0/24", "10.10.12.0/24"]'
-
-        TF_VAR_nexus_ami_id = "${params.NEXUS_AMI_ID}"
-        TF_VAR_alarm_email  = "${params.ALARM_EMAIL}"
+        AWS_DEFAULT_REGION = "${params.AWS_REGION}"
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Tool Versions') {
+            steps {
+                sh '''
+                terraform version
+                aws --version
+                curl --version
+                '''
             }
         }
 
@@ -45,10 +41,10 @@ pipeline {
             }
         }
 
-        stage('Terraform Init') {
+        stage('Terraform Init Without Backend') {
             steps {
                 dir('infra/envs/dev') {
-                    sh 'terraform init'
+                    sh 'terraform init -backend=false'
                 }
             }
         }
@@ -61,52 +57,34 @@ pipeline {
             }
         }
 
-        stage('Terraform Plan') {
+        stage('AWS Identity Check') {
             steps {
-                dir('infra/envs/dev') {
-                    sh 'terraform plan -out=tfplan'
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh 'aws sts get-caller-identity'
                 }
             }
         }
 
-        stage('Manual Approval') {
+        stage('Nexus Smoke Test') {
             steps {
-                input message: 'Review the Terraform plan. Apply changes?', ok: 'Apply'
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                dir('infra/envs/dev') {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
-
-        stage('Smoke Test') {
-            steps {
-                dir('infra/envs/dev') {
-                    sh '''
-                    ALB_DNS=$(terraform output -raw alb_dns_name)
-                    echo "Testing Nexus through ALB: http://${ALB_DNS}"
-                    curl -I --fail --max-time 30 http://${ALB_DNS}
-                    '''
-                }
+                sh '''
+                echo "Testing Nexus through ALB: http://${ALB_DNS_NAME}"
+                curl -I --fail --max-time 30 http://${ALB_DNS_NAME}
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline completed successfully. Infrastructure is applied and Nexus smoke test passed.'
+            echo 'Local Jenkins pipeline test completed successfully.'
         }
 
         failure {
-            echo 'Pipeline failed. Check Terraform logs, AWS connectivity, credentials, or Nexus health.'
-        }
-
-        always {
-            archiveArtifacts artifacts: 'infra/envs/dev/tfplan', fingerprint: true, allowEmptyArchive: true
+            echo 'Pipeline failed. Check tools, AWS credentials, Terraform validation, or ALB connectivity.'
         }
     }
 }
